@@ -1,77 +1,80 @@
 import streamlit as st
 import pandas as pd
 
-# 1. SETTINGS - Make sure this matches your file name on GitHub exactly!
-# If your file is "sue master stock.csv", keep it like this.
-DATA_FILENAME = "SUE STOCK PRICE.csv"
+# 1. SETTINGS
+DATA_FILENAME = "sue master stock.csv"
 
 @st.cache_data
 def load_data():
     try:
-        # 'latin1' encoding handles the special characters from Excel
-        df = pd.read_csv(DATA_FILENAME, encoding='latin1')
+        # We use on_bad_lines='skip' to ignore rows that don't match the table
+        # We use engine='python' because it is more flexible with messy files
+        df = pd.read_csv(
+            DATA_FILENAME, 
+            encoding='latin1', 
+            on_bad_lines='skip', 
+            engine='python'
+        )
         
-        # Clean up column names (removes extra spaces)
-        df.columns = df.columns.str.strip()
+        # CLEANUP: If the first few rows are empty or metadata, 
+        # we look for the row that contains 'NAME' and make that the header
+        if 'NAME' not in df.columns:
+            # Try to find the header row automatically
+            for i in range(len(df)):
+                if 'NAME' in df.iloc[i].values:
+                    df.columns = df.iloc[i]
+                    df = df.iloc[i+1:].reset_index(drop=True)
+                    break
+
+        # Standardize column names
+        df.columns = [str(c).strip() for c in df.columns]
         
-        # Convert STOCK and Prices to numbers, handling errors
-        if 'STOCK' in df.columns:
-            df['STOCK'] = pd.to_numeric(df['STOCK'], errors='coerce').fillna(0)
-        if 'Purchase Rate' in df.columns:
-            df['Purchase Rate'] = pd.to_numeric(df['Purchase Rate'], errors='coerce').fillna(0)
-        if 'Last Sale Rate' in df.columns:
-            df['Last Sale Rate'] = pd.to_numeric(df['Last Sale Rate'], errors='coerce').fillna(0)
-            
+        # Clean up Numeric Columns
+        numeric_cols = ['STOCK', 'Purchase Rate', 'Last Sale Rate', 'MRP']
+        for col in numeric_cols:
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
+        
         return df
-    except FileNotFoundError:
-        st.error(f"❌ File not found: {DATA_FILENAME}. Please check the name on GitHub.")
-        return None
     except Exception as e:
-        st.error(f"❌ Error: {e}")
+        st.error(f"❌ Error reading file: {e}")
         return None
 
-# --- APP INTERFACE ---
+# --- APP UI ---
 st.set_page_config(page_title="SUE Inventory", layout="wide")
 st.title("📊 Shree Umiya Electricals")
-st.markdown("### Stock & Price Management System")
 
 df = load_data()
 
-if df is not None:
-    # --- Sidebar Filters ---
-    st.sidebar.header("Filter Results")
+if df is not None and not df.empty:
+    # Sidebar search
     search = st.sidebar.text_input("🔍 Search Item Name")
     
-    if 'Category' in df.columns:
-        categories = ["All"] + sorted(df['Category'].dropna().unique().tolist())
-        cat_filter = st.sidebar.selectbox("Category", categories)
-    else:
-        cat_filter = "All"
-
-    # --- Apply Filters ---
-    filtered_df = df.copy()
+    # Filter logic
     if search:
-        filtered_df = filtered_df[filtered_df['NAME'].str.contains(search, case=False, na=False)]
-    if cat_filter != "All":
-        filtered_df = filtered_df[filtered_df['Category'] == cat_filter]
+        # Clean 'NAME' column in case of NaN
+        df['NAME'] = df['NAME'].astype(str)
+        filtered_df = df[df['NAME'].str.contains(search, case=False, na=False)]
+    else:
+        filtered_df = df
 
-    # --- Metrics ---
+    # Metrics
     c1, c2, c3 = st.columns(3)
-    c1.metric("Total Items", len(filtered_df))
+    c1.metric("Items Found", len(filtered_df))
     
     if 'STOCK' in filtered_df.columns:
-        low_stock = len(filtered_df[filtered_df['STOCK'] <= 0])
-        c2.metric("Out of Stock", low_stock)
+        out_of_stock = len(filtered_df[filtered_df['STOCK'] <= 0])
+        c2.metric("Out of Stock", out_of_stock)
         
-        stock_value = (filtered_df['STOCK'] * filtered_df['Purchase Rate']).sum()
-        c3.metric("Stock Value (Purchase)", f"₹{stock_value:,.2f}")
+        if 'Purchase Rate' in filtered_df.columns:
+            total_val = (filtered_df['STOCK'] * filtered_df['Purchase Rate']).sum()
+            c3.metric("Stock Value", f"₹{total_val:,.0f}")
 
-    # --- Data Table ---
-    cols_to_show = ['NAME', 'STOCK', 'Purchase Rate', 'Last Sale Rate', 'NEW HSN 8']
-    # Only show columns that actually exist in your file
-    existing_cols = [c for c in cols_to_show if c in filtered_df.columns]
+    # Final Display
+    # Pick only columns that actually exist
+    cols = ['NAME', 'STOCK', 'Purchase Rate', 'Last Sale Rate', 'NEW HSN 8']
+    valid_cols = [c for c in cols if c in filtered_df.columns]
     
-    st.dataframe(filtered_df[existing_cols], use_container_width=True)
-
+    st.dataframe(filtered_df[valid_cols], use_container_width=True)
 else:
-    st.warning("Please verify that your CSV file is uploaded to GitHub and the name is correct.")
+    st.info("Searching for valid data in the uploaded file...")
