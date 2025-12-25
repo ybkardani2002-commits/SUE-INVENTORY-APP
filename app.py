@@ -1,3 +1,10 @@
+import streamlit as st
+import pandas as pd
+
+# The rest of your code should come AFTER the imports
+@st.cache_data
+def load_data():
+    # ... your existing code ...
 @st.cache_data
 def load_data():
     try:
