@@ -1,46 +1,52 @@
 import streamlit as st
 import pandas as pd
 
-# 1. Configuration
-st.set_page_config(page_title="SUE Inventory", layout="wide")
+# 1. Update this to match your NEW filename on GitHub exactly
+# If the file is named "sue stock price.csv", type it exactly like that:
+DATA_FILENAME = "sue stock price.csv" 
 
-# 2. Load Data from GitHub
 @st.cache_data
 def load_data():
-    # This must match your filename exactly
-    df = pd.read_csv("SUE STOCK PRICE.xlsx - Master.csv")
-    df['STOCK'] = df['STOCK'].fillna(0)
-    # Convert margin to percentage for display
-    if 'Margin' in df.columns:
-        df['Margin'] = df['Margin'].fillna(0) * 100
-    return df
+    try:
+        df = pd.read_csv(DATA_FILENAME)
+        
+        # Standardize columns (cleaning up spaces)
+        df.columns = df.columns.str.strip()
+        
+        # Basic Data Cleaning
+        if 'STOCK' in df.columns:
+            df['STOCK'] = df['STOCK'].fillna(0)
+        if 'Margin' in df.columns:
+            df['Margin'] = pd.to_numeric(df['Margin'], errors='coerce').fillna(0) * 100
+            
+        return df
+    except FileNotFoundError:
+        st.error(f"❌ Error: The file '{DATA_FILENAME}' was not found in your GitHub folder.")
+        st.info("Please make sure you uploaded the file and the name matches perfectly.")
+        return None
 
-try:
-    df = load_data()
-    
-    st.title("📊 Shree Umiya Electricals")
-    st.subheader("Inventory Management System")
+# --- UI Setup ---
+st.set_page_config(page_title="SUE Inventory", layout="wide")
+st.title("📊 Shree Umiya Electricals")
 
-    # --- Search Bar ---
-    search = st.text_input("🔍 Search for an Item (e.g., 'Pump' or 'Motor')")
+df = load_data()
+
+if df is not None:
+    # Search box
+    search = st.text_input("🔍 Search Item Name")
     
+    # Filter data
     if search:
-        display_df = df[df['NAME'].str.contains(search, case=False, na=False)]
+        filtered_df = df[df['NAME'].str.contains(search, case=False, na=False)]
     else:
-        display_df = df
+        filtered_df = df
 
-    # --- Key Stats ---
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Total Items", len(display_df))
-    low_stock = len(display_df[display_df['STOCK'] <= 0])
-    c2.metric("Out of Stock", low_stock, delta_color="inverse")
-    
-    # --- Table ---
-    st.dataframe(
-        display_df[['NAME', 'Category', 'STOCK', 'Purchase Rate', 'Last Sale Rate', 'NEW HSN 8']], 
-        use_container_width=True
-    )
+    # Display Metrics
+    c1, c2 = st.columns(2)
+    c1.metric("Total Items", len(filtered_df))
+    if 'STOCK' in filtered_df.columns:
+        low_stock = len(filtered_df[filtered_df['STOCK'] <= 0])
+        c2.metric("Out of Stock", low_stock)
 
-except Exception as e:
-    st.error(f"Error loading file: {e}")
-    st.info("Make sure the filename in app.py matches the file uploaded to GitHub.")
+    # Display Table
+    st.dataframe(filtered_df, use_container_width=True)
