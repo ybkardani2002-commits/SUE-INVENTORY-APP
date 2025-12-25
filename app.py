@@ -1,141 +1,65 @@
 import streamlit as st
 import pandas as pd
 
-# 1. SETTINGS - Filename updated as requested
+# 1. SETTINGS
 DATA_FILENAME = "SUE STOCK PRICE.csv"
 
 @st.cache_data
 def load_data():
     try:
-        # Loading with 'latin1' to handle special characters and skipping bad rows
+        # Loading with 'latin1' for Excel characters and skipping messy rows
         df = pd.read_csv(DATA_FILENAME, encoding='latin1', on_bad_lines='skip')
         
-        # Clean up column names
+        # Remove extra spaces from column names
         df.columns = [str(c).strip() for c in df.columns]
         
-        # Convert numeric columns safely
-        cols_to_fix = ['STOCK', 'Purchase Rate', 'Last Sale Rate', 'MRP', 'Margin']
-        for col in cols_to_fix:
+        # Convert numbers correctly
+        numeric_cols = ['STOCK', 'Purchase Rate', 'Last Sale Rate', 'MRP']
+        for col in numeric_cols:
             if col in df.columns:
                 df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
         
         return df
     except FileNotFoundError:
-        st.error(f"❌ Could not find the file: {DATA_FILENAME}")
-        st.info("Please ensure your file on GitHub is named exactly 'SUE STOCK PRICE.csv' (case sensitive).")
+        st.error(f"❌ File Not Found: {DATA_FILENAME}")
         return None
     except Exception as e:
         st.error(f"❌ Error: {e}")
         return None
 
-# --- APP LAYOUT ---
+# --- APP INTERFACE ---
 st.set_page_config(page_title="SUE Inventory", layout="wide")
 st.title("📊 Shree Umiya Electricals")
 
 df = load_data()
 
 if df is not None:
-    # --- Search Bar ---
-    search = st.text_input("🔍 Search by Item Name or HSN Code")
+    # --- Search ---
+    search = st.text_input("🔍 Search Item Name or HSN")
 
-    # --- Filtering Logic ---
     if search:
-        # Search in Name and HSN column
-        mask = df['NAME'].astype(str).str.contains(search, case=False, na=False)
-        if 'NEW HSN 8' in df.columns:
-            mask |= df['NEW HSN 8'].astype(str).str.contains(search, case=False, na=False)
-        filtered_df = df[mask]
+        # Filters rows where the search term is in the NAME column
+        filtered_df = df[df['NAME'].astype(str).str.contains(search, case=False, na=False)]
     else:
         filtered_df = df
 
-    # --- Metrics Section ---
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Total Items", len(filtered_df))
+    # --- Metrics ---
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Total Items", len(filtered_df))
     
     if 'STOCK' in filtered_df.columns:
-        out_of_stock = len(filtered_df[filtered_df['STOCK'] <= 0])
-        c2.metric("Out of Stock", out_of_stock)
+        low_stock = len(filtered_df[filtered_df['STOCK'] <= 0])
+        col2.metric("Out of Stock", low_stock)
         
         if 'Purchase Rate' in filtered_df.columns:
-            total_val = (filtered_df['STOCK'] * filtered_df['Purchase Rate']).sum()
-            c3.metric("Stock Value", f"₹{total_val:,.0f}")
+            total_value = (filtered_df['STOCK'] * filtered_df['Purchase Rate']).sum()
+            col3.metric("Stock Value", f"₹{total_value:,.0f}")
 
-    # --- Data Display ---
-    # Define columns to show (only if they exist in the file)
-    display_cols = ['NAME', 'STOCK', 'Purchase Rate', 'Last Sale Rate', 'NEW HSN 8', 'Margin']
-    existing_cols = [c for c in display_cols if c in filtered_df.columns]
+    # --- Table ---
+    cols_to_show = ['NAME', 'STOCK', 'Purchase Rate', 'Last Sale Rate', 'NEW HSN 8']
+    existing_cols = [c for c in cols_to_show if c in filtered_df.columns]
     
     st.dataframe(filtered_df[existing_cols], use_container_width=True, hide_index=True)
 
 else:
-    st.warning("Waiting for data... Please check your GitHub filename.")import streamlit as st
-import pandas as pd
-
-# 1. SETTINGS - Filename updated as requested
-DATA_FILENAME = "SUE STOCK PRICE.csv"
-
-@st.cache_data
-def load_data():
-    try:
-        # Loading with 'latin1' to handle special characters and skipping bad rows
-        df = pd.read_csv(DATA_FILENAME, encoding='latin1', on_bad_lines='skip')
-        
-        # Clean up column names
-        df.columns = [str(c).strip() for c in df.columns]
-        
-        # Convert numeric columns safely
-        cols_to_fix = ['STOCK', 'Purchase Rate', 'Last Sale Rate', 'MRP', 'Margin']
-        for col in cols_to_fix:
-            if col in df.columns:
-                df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
-        
-        return df
-    except FileNotFoundError:
-        st.error(f"❌ Could not find the file: {DATA_FILENAME}")
-        st.info("Please ensure your file on GitHub is named exactly 'SUE STOCK PRICE.csv' (case sensitive).")
-        return None
-    except Exception as e:
-        st.error(f"❌ Error: {e}")
-        return None
-
-# --- APP LAYOUT ---
-st.set_page_config(page_title="SUE Inventory", layout="wide")
-st.title("📊 Shree Umiya Electricals")
-
-df = load_data()
-
-if df is not None:
-    # --- Search Bar ---
-    search = st.text_input("🔍 Search by Item Name or HSN Code")
-
-    # --- Filtering Logic ---
-    if search:
-        # Search in Name and HSN column
-        mask = df['NAME'].astype(str).str.contains(search, case=False, na=False)
-        if 'NEW HSN 8' in df.columns:
-            mask |= df['NEW HSN 8'].astype(str).str.contains(search, case=False, na=False)
-        filtered_df = df[mask]
-    else:
-        filtered_df = df
-
-    # --- Metrics Section ---
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Total Items", len(filtered_df))
-    
-    if 'STOCK' in filtered_df.columns:
-        out_of_stock = len(filtered_df[filtered_df['STOCK'] <= 0])
-        c2.metric("Out of Stock", out_of_stock)
-        
-        if 'Purchase Rate' in filtered_df.columns:
-            total_val = (filtered_df['STOCK'] * filtered_df['Purchase Rate']).sum()
-            c3.metric("Stock Value", f"₹{total_val:,.0f}")
-
-    # --- Data Display ---
-    # Define columns to show (only if they exist in the file)
-    display_cols = ['NAME', 'STOCK', 'Purchase Rate', 'Last Sale Rate', 'NEW HSN 8', 'Margin']
-    existing_cols = [c for c in display_cols if c in filtered_df.columns]
-    
-    st.dataframe(filtered_df[existing_cols], use_container_width=True, hide_index=True)
-
-else:
-    st.warning("Waiting for data... Please check your GitHub filename.")
+    st.warning("Please check if 'SUE STOCK PRICE.csv' is uploaded to your GitHub repository.")
