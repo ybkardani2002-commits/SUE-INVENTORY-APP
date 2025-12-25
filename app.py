@@ -3,7 +3,7 @@ import pandas as pd
 
 # 1. Update this to match your NEW filename on GitHub exactly
 # If the file is named "sue stock price.csv", type it exactly like that:
-DATA_FILENAME = "sue stock price.csv" 
+DATA_FILENAME = "SUE STOCK PRICE.csv" 
 
 @st.cache_data
 def load_data():
